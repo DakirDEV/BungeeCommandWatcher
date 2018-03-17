@@ -1,11 +1,12 @@
 package de.dakir.bungeecommandwatcher.utils;
 
-public class Strings {
+import java.util.ArrayList;
+import java.util.List;
 
-	public static String cprefix = "[BungeeCommandWatcher] ";
-	public static String onlyPlayer = cprefix + "You are not a player!";
+public class ConfigBackup {
 	
-	public static String configversion;
+	public static double configversion;
+	
 	public static String prefix;
 	public static String format;
 	public static String noPermission;
@@ -21,7 +22,7 @@ public class Strings {
 	public static String playersWithCommandWatcher;
 	public static String listPlayerWithCommandWatcher;
 	public static String reload;
-	
-	public static String commandColor;
 
+	public static List<String> blockedCommands = new ArrayList<>();
+	
 }
