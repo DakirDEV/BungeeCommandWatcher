@@ -32,7 +32,7 @@ import java.util.zip.GZIPOutputStream;
 
 /**
  * bStats collects some data for plugin authors.
- *
+ * <p>
  * Check out https://bStats.org/ to learn more about bStats!
  */
 public class Metrics {
@@ -103,7 +103,7 @@ public class Metrics {
         } else {
             // We aren't the first so we link to the first metrics class
             try {
-                usedMetricsClass.getMethod("linkMetrics", Object.class).invoke(null,this);
+                usedMetricsClass.getMethod("linkMetrics", Object.class).invoke(null, this);
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
                 if (logFailedRequests) {
                     plugin.getLogger().log(Level.WARNING, "Failed to link to first metrics class " + usedMetricsClass.getName() + "!", e);
@@ -167,7 +167,7 @@ public class Metrics {
         plugin.getProxy().getScheduler().schedule(plugin, new Runnable() {
             @Override
             public void run() {
-            // The data collection is async, as well as sending the data
+                // The data collection is async, as well as sending the data
                 // Bungeecord does not have a main thread, everything is async
                 submitData();
             }
@@ -187,7 +187,7 @@ public class Metrics {
         int playerAmount = plugin.getProxy().getOnlineCount();
         playerAmount = playerAmount > 500 ? 500 : playerAmount;
         @SuppressWarnings("deprecation")
-		int onlineMode = plugin.getProxy().getConfig().isOnlineMode() ? 1 : 0;
+        int onlineMode = plugin.getProxy().getConfig().isOnlineMode() ? 1 : 0;
         String bungeecordVersion = plugin.getProxy().getVersion();
         int managedServers = plugin.getProxy().getServers().size();
 
@@ -230,7 +230,8 @@ public class Metrics {
                 if (plugin instanceof JsonObject) {
                     pluginData.add((JsonObject) plugin);
                 }
-            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ignored) { }
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ignored) {
+            }
         }
 
         data.add("plugins", pluginData);
@@ -290,7 +291,8 @@ public class Metrics {
                 try {
                     // Let's check if a class with the given name exists.
                     return Class.forName(className);
-                } catch (ClassNotFoundException ignored) { }
+                } catch (ClassNotFoundException ignored) {
+                }
             }
             writeFile(tempFile, getClass().getName());
             return getClass();
@@ -315,7 +317,7 @@ public class Metrics {
         }
         try (
                 FileReader fileReader = new FileReader(file);
-                BufferedReader bufferedReader =  new BufferedReader(fileReader);
+                BufferedReader bufferedReader = new BufferedReader(fileReader);
         ) {
             return bufferedReader.readLine();
         }
@@ -324,7 +326,7 @@ public class Metrics {
     /**
      * Writes a String to a file. It also adds a note for the user,
      *
-     * @param file The file to write to. Cannot be null.
+     * @param file  The file to write to. Cannot be null.
      * @param lines The lines to write.
      * @throws IOException If something did not work :(
      */
@@ -450,7 +452,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public SimplePie(String chartId, Callable<String> callable) {
@@ -481,7 +483,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public AdvancedPie(String chartId, Callable<Map<String, Integer>> callable) {
@@ -525,7 +527,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public DrilldownPie(String chartId, Callable<Map<String, Map<String, Integer>>> callable) {
@@ -574,7 +576,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public SingleLineChart(String chartId, Callable<Integer> callable) {
@@ -606,7 +608,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public MultiLineChart(String chartId, Callable<Map<String, Integer>> callable) {
@@ -651,7 +653,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public SimpleBarChart(String chartId, Callable<Map<String, Integer>> callable) {
@@ -689,7 +691,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId The id of the chart.
+         * @param chartId  The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public AdvancedBarChart(String chartId, Callable<Map<String, int[]>> callable) {
