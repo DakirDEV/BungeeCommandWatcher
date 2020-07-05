@@ -1,0 +1,36 @@
+#BungeeCommandWatcher by Dakir
+#Website: http://hexxcraft.net/
+
+#Please don't edit this
+configversion: ${project.version}
+
+#Prefix of all messages
+prefix: '&8[&6CW&8] &f'
+
+#Format of CommandWatcher messages
+#Placeholders:
+# - %prefix% = plugin prefix
+# - %player% = player name
+# - %server% = players server name
+# - %command% = command which is sent
+format: '%prefix%&c%player% &8(&7%server%&8) &f»»» &6%command%'
+
+#Commands which are not displayed
+blockedCommands:
+- '/login'
+- '/register'
+
+#Messages
+noPermission: 'You have no permission for that!'
+commandNotExists: 'This command does not exist!'
+playerNotFound: 'Player not found!'
+enabledCommandWatcher: 'CommandWatcher has been activated!'
+disabledCommandWatcher: 'CommandWatcher has been disabled!'
+enabledCommandWatcherOther-Target: 'CommandWatcher has been activated by &c%player%&f!'
+enabledCommandWatcherOther-Sender: 'You have activated CommandWatcher for &c%player%&f!'
+disabledCommandWatcherOther-Target: 'CommandWatcher has been disabled by &c%player%&f!'
+disabledCommandWatcherOther-Sender: 'You have disabled CommandWatcher for &c%player%&f!'
+noPlayer: 'No player has CommandWatcher enabled!'
+playersWithCommandWatcher: 'Players with CommandWatcher:'
+listPlayerWithCommandWatcher: '&f» &c%player%'
+reload: 'Config has been reloaded!'

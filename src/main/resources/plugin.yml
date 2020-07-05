@@ -1,0 +1,9 @@
+name: BungeeCommandWatcher
+main: de.dakir.bungeecommandwatcher.Main
+version: ${project.version}
+author: Dakir
+website: http://hexxcraft.net/
+description: With BungeeCommandWatcher you can see all Commands from your players network wide!
+commands:
+  commandwatcher:
+  cw:
