@@ -9,17 +9,10 @@ import net.md_5.bungee.config.ConfigurationProvider;
 import net.md_5.bungee.config.YamlConfiguration;
 
 import javax.net.ssl.HttpsURLConnection;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
-import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +28,7 @@ import java.util.zip.GZIPOutputStream;
  * <p>
  * Check out https://bStats.org/ to learn more about bStats!
  */
+@SuppressWarnings({"WeakerAccess", "unused"})
 public class Metrics {
 
     static {
@@ -60,6 +54,9 @@ public class Metrics {
     // The plugin
     private final Plugin plugin;
 
+    // The plugin id
+    private final int pluginId;
+
     // Is bStats enabled on this server?
     private boolean enabled;
 
@@ -69,14 +66,28 @@ public class Metrics {
     // Should failed requests be logged?
     private boolean logFailedRequests = false;
 
+    // Should the sent data be logged?
+    private static boolean logSentData;
+
+    // Should the response text be logged?
+    private static boolean logResponseStatusText;
+
     // A list with all known metrics class objects including this one
     private static final List<Object> knownMetricsInstances = new ArrayList<>();
 
     // A list with all custom charts
     private final List<CustomChart> charts = new ArrayList<>();
 
-    public Metrics(Plugin plugin) {
+    /**
+     * Class constructor.
+     *
+     * @param plugin The plugin which stats should be submitted.
+     * @param pluginId The id of the plugin.
+     *                 It can be found at <a href="https://bstats.org/what-is-my-plugin-id">What is my plugin id?</a>
+     */
+    public Metrics(Plugin plugin, int pluginId) {
         this.plugin = plugin;
+        this.pluginId = pluginId;
 
         try {
             loadConfig();
@@ -110,6 +121,15 @@ public class Metrics {
                 }
             }
         }
+    }
+
+    /**
+     * Checks if bStats is enabled.
+     *
+     * @return Whether bStats is enabled or not.
+     */
+    public boolean isEnabled() {
+        return enabled;
     }
 
     /**
@@ -147,6 +167,7 @@ public class Metrics {
         String pluginVersion = plugin.getDescription().getVersion();
 
         data.addProperty("pluginName", pluginName);
+        data.addProperty("id", pluginId);
         data.addProperty("pluginVersion", pluginVersion);
 
         JsonArray customCharts = new JsonArray();
@@ -164,14 +185,9 @@ public class Metrics {
     }
 
     private void startSubmitting() {
-        plugin.getProxy().getScheduler().schedule(plugin, new Runnable() {
-            @Override
-            public void run() {
-                // The data collection is async, as well as sending the data
-                // Bungeecord does not have a main thread, everything is async
-                submitData();
-            }
-        }, 2, 30, TimeUnit.MINUTES);
+        // The data collection is async, as well as sending the data
+        // Bungeecord does not have a main thread, everything is async
+        plugin.getProxy().getScheduler().schedule(plugin, this::submitData, 2, 30, TimeUnit.MINUTES);
         // Submit the data every 30 minutes, first time after 2 minutes to give other plugins enough time to start
         // WARNING: Changing the frequency has no effect but your plugin WILL be blocked/deleted!
         // WARNING: Just don't do it!
@@ -184,9 +200,7 @@ public class Metrics {
      */
     private JsonObject getServerData() {
         // Minecraft specific data
-        int playerAmount = plugin.getProxy().getOnlineCount();
-        playerAmount = playerAmount > 500 ? 500 : playerAmount;
-        @SuppressWarnings("deprecation")
+        int playerAmount = Math.min(plugin.getProxy().getOnlineCount(), 500);
         int onlineMode = plugin.getProxy().getConfig().isOnlineMode() ? 1 : 0;
         String bungeecordVersion = plugin.getProxy().getVersion();
         int managedServers = plugin.getProxy().getServers().size();
@@ -230,15 +244,14 @@ public class Metrics {
                 if (plugin instanceof JsonObject) {
                     pluginData.add((JsonObject) plugin);
                 }
-            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ignored) {
-            }
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException ignored) { }
         }
 
         data.add("plugins", pluginData);
 
         try {
             // Send the data
-            sendData(data);
+            sendData(plugin, data);
         } catch (Exception e) {
             // Something went wrong! :(
             if (logFailedRequests) {
@@ -253,9 +266,9 @@ public class Metrics {
      * @throws IOException If something did not work :(
      */
     private void loadConfig() throws IOException {
-        Path configPath = plugin.getDataFolder().toPath().getParent().resolve("bStats");
-        configPath.toFile().mkdirs();
-        File configFile = new File(configPath.toFile(), "config.yml");
+        File bStatsFolder = new File(plugin.getDataFolder().getParentFile(), "bStats");
+        bStatsFolder.mkdirs();
+        File configFile = new File(bStatsFolder, "config.yml");
         if (!configFile.exists()) {
             writeFile(configFile,
                     "#bStats collects some data for plugin authors like how many servers are using their plugins.",
@@ -263,8 +276,10 @@ public class Metrics {
                     "#This has nearly no effect on the server performance!",
                     "#Check out https://bStats.org/ to learn more :)",
                     "enabled: true",
-                    "serverUuid: \"" + UUID.randomUUID().toString() + "\"",
-                    "logFailedRequests: false");
+                    "serverUuid: \"" + UUID.randomUUID() + "\"",
+                    "logFailedRequests: false",
+                    "logSentData: false",
+                    "logResponseStatusText: false");
         }
 
         Configuration configuration = ConfigurationProvider.getProvider(YamlConfiguration.class).load(configFile);
@@ -273,6 +288,8 @@ public class Metrics {
         enabled = configuration.getBoolean("enabled", true);
         serverUUID = configuration.getString("serverUuid");
         logFailedRequests = configuration.getBoolean("logFailedRequests", false);
+        logSentData = configuration.getBoolean("logSentData", false);
+        logResponseStatusText = configuration.getBoolean("logResponseStatusText", false);
     }
 
     /**
@@ -281,9 +298,9 @@ public class Metrics {
      * @return The first bStats metrics class.
      */
     private Class<?> getFirstBStatsClass() {
-        Path configPath = plugin.getDataFolder().toPath().getParent().resolve("bStats");
-        configPath.toFile().mkdirs();
-        File tempFile = new File(configPath.toFile(), "temp.txt");
+        File bStatsFolder = new File(plugin.getDataFolder().getParentFile(), "bStats");
+        bStatsFolder.mkdirs();
+        File tempFile = new File(bStatsFolder, "temp.txt");
 
         try {
             String className = readFile(tempFile);
@@ -291,8 +308,7 @@ public class Metrics {
                 try {
                     // Let's check if a class with the given name exists.
                     return Class.forName(className);
-                } catch (ClassNotFoundException ignored) {
-                }
+                } catch (ClassNotFoundException ignored) { }
             }
             writeFile(tempFile, getClass().getName());
             return getClass();
@@ -308,17 +324,14 @@ public class Metrics {
      * Reads the first line of the file.
      *
      * @param file The file to read. Cannot be null.
-     * @return The first line of the file or <code>null</code> if the file does not exist or is empty.
+     * @return The first line of the file or {@code null} if the file does not exist or is empty.
      * @throws IOException If something did not work :(
      */
     private String readFile(File file) throws IOException {
         if (!file.exists()) {
             return null;
         }
-        try (
-                FileReader fileReader = new FileReader(file);
-                BufferedReader bufferedReader = new BufferedReader(fileReader);
-        ) {
+        try (BufferedReader bufferedReader = new BufferedReader(new FileReader(file))) {
             return bufferedReader.readLine();
         }
     }
@@ -326,18 +339,12 @@ public class Metrics {
     /**
      * Writes a String to a file. It also adds a note for the user,
      *
-     * @param file  The file to write to. Cannot be null.
+     * @param file The file to write to. Cannot be null.
      * @param lines The lines to write.
      * @throws IOException If something did not work :(
      */
     private void writeFile(File file, String... lines) throws IOException {
-        if (!file.exists()) {
-            file.createNewFile();
-        }
-        try (
-                FileWriter fileWriter = new FileWriter(file);
-                BufferedWriter bufferedWriter = new BufferedWriter(fileWriter)
-        ) {
+        try (BufferedWriter bufferedWriter = new BufferedWriter(new FileWriter(file))) {
             for (String line : lines) {
                 bufferedWriter.write(line);
                 bufferedWriter.newLine();
@@ -348,12 +355,16 @@ public class Metrics {
     /**
      * Sends the data to the bStats server.
      *
+     * @param plugin Any plugin. It's just used to get a logger instance.
      * @param data The data to send.
      * @throws Exception If the request failed.
      */
-    private static void sendData(JsonObject data) throws Exception {
+    private static void sendData(Plugin plugin, JsonObject data) throws Exception {
         if (data == null) {
             throw new IllegalArgumentException("Data cannot be null");
+        }
+        if (logSentData) {
+            plugin.getLogger().info("Sending data to bStats: " + data);
         }
 
         HttpsURLConnection connection = (HttpsURLConnection) new URL(URL).openConnection();
@@ -363,21 +374,31 @@ public class Metrics {
 
         // Add headers
         connection.setRequestMethod("POST");
-        connection.addRequestProperty("Accept", "application/Json");
+        connection.addRequestProperty("Accept", "application/json");
         connection.addRequestProperty("Connection", "close");
         connection.addRequestProperty("Content-Encoding", "gzip"); // We gzip our request
         connection.addRequestProperty("Content-Length", String.valueOf(compressedData.length));
-        connection.setRequestProperty("Content-Type", "application/Json"); // We send our data in Json format
+        connection.setRequestProperty("Content-Type", "application/json"); // We send our data in JSON format
         connection.setRequestProperty("User-Agent", "MC-Server/" + B_STATS_VERSION);
 
         // Send data
         connection.setDoOutput(true);
-        DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream());
-        outputStream.write(compressedData);
-        outputStream.flush();
-        outputStream.close();
+        try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
+            outputStream.write(compressedData);
+        }
 
-        connection.getInputStream().close(); // We don't care about the response - Just send our data :)
+        StringBuilder builder = new StringBuilder();
+
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(connection.getInputStream()))) {
+            String line;
+            while ((line = bufferedReader.readLine()) != null) {
+                builder.append(line);
+            }
+        }
+
+        if (logResponseStatusText) {
+            plugin.getLogger().info("Sent data to bStats and received response: " + builder);
+        }
     }
 
     /**
@@ -392,9 +413,9 @@ public class Metrics {
             return null;
         }
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        GZIPOutputStream gzip = new GZIPOutputStream(outputStream);
-        gzip.write(str.getBytes("UTF-8"));
-        gzip.close();
+        try (GZIPOutputStream gzip = new GZIPOutputStream(outputStream)) {
+            gzip.write(str.getBytes(StandardCharsets.UTF_8));
+        }
         return outputStream.toByteArray();
     }
 
@@ -452,7 +473,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public SimplePie(String chartId, Callable<String> callable) {
@@ -483,7 +504,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public AdvancedPie(String chartId, Callable<Map<String, Integer>> callable) {
@@ -527,7 +548,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public DrilldownPie(String chartId, Callable<Map<String, Map<String, Integer>>> callable) {
@@ -576,7 +597,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public SingleLineChart(String chartId, Callable<Integer> callable) {
@@ -608,7 +629,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public MultiLineChart(String chartId, Callable<Map<String, Integer>> callable) {
@@ -653,7 +674,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public SimpleBarChart(String chartId, Callable<Map<String, Integer>> callable) {
@@ -691,7 +712,7 @@ public class Metrics {
         /**
          * Class constructor.
          *
-         * @param chartId  The id of the chart.
+         * @param chartId The id of the chart.
          * @param callable The callable which is used to request the chart data.
          */
         public AdvancedBarChart(String chartId, Callable<Map<String, int[]>> callable) {

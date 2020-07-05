@@ -19,7 +19,7 @@ public class Main extends Plugin {
         ConfigManager.load();
 
         @SuppressWarnings("unused")
-        Metrics metrics = new Metrics(Main.instance);
+        Metrics metrics = new Metrics(this, 2097);
 
         System.out.println(Strings.cprefix + "Plugin wurde aktiviert!");
     }
